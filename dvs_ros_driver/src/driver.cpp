@@ -31,7 +31,9 @@ DvsRosDriver::DvsRosDriver(ros::NodeHandle & nh, ros::NodeHandle nh_private) :
   while (!device_is_running)
   {
     const char* serial_number_restrict = (device_id_ == "") ? NULL : device_id_.c_str();
-    dvs128_handle = caerDeviceOpen(1, CAER_DEVICE_DVS128, 0, 0, serial_number_restrict);
+    std::string serialPortName("/dev/ttyUSB0");
+    dvs128_handle = caerDeviceOpenSerial(1, CAER_DEVICE_EDVS, serialPortName.c_str() , CAER_HOST_CONFIG_SERIAL_BAUD_RATE_4M);
+    // dvs128_handle = caerDeviceOpen(1, CAER_DEVICE_DVS128, 0, 0, serial_number_restrict);
 
     //dvs_running = driver_->isDeviceRunning();
     device_is_running = !(dvs128_handle == NULL);
@@ -45,7 +47,7 @@ DvsRosDriver::DvsRosDriver(ros::NodeHandle & nh, ros::NodeHandle nh_private) :
     else
     {
       // configure as master or slave
-      caerDeviceConfigSet(dvs128_handle, DVS128_CONFIG_DVS, DVS128_CONFIG_DVS_TS_MASTER, master_);
+      caerDeviceConfigSet(dvs128_handle, EDVS_CONFIG_DVS, DVS128_CONFIG_DVS_TS_MASTER, master_);
     }
 
     if (!ros::ok())
@@ -53,13 +55,11 @@ DvsRosDriver::DvsRosDriver(ros::NodeHandle & nh, ros::NodeHandle nh_private) :
       return;
     }
   }
+  dvs128_info_ = caerEDVSInfoGet(dvs128_handle);
+  device_id_ = "DVS128-V1-" + std::string(dvs128_info_.deviceString);
 
-  dvs128_info_ = caerDVS128InfoGet(dvs128_handle);
-  device_id_ = "DVS128-V1-" + std::string(dvs128_info_.deviceString).substr(15, 4);
-
-  ROS_INFO("%s --- ID: %d, Master: %d, DVS X: %d, DVS Y: %d, Logic: %d.\n", dvs128_info_.deviceString,
-           dvs128_info_.deviceID, dvs128_info_.deviceIsMaster, dvs128_info_.dvsSizeX, dvs128_info_.dvsSizeY,
-           dvs128_info_.logicVersion);
+  ROS_INFO("%s --- ID: %d, Master: %d, DVS X: %d, DVS Y: %d.\n", dvs128_info_.deviceString,
+           dvs128_info_.deviceID, dvs128_info_.deviceIsMaster, dvs128_info_.dvsSizeX, dvs128_info_.dvsSizeY);
 
   current_config_.streaming_rate = 30;
   delta_ = boost::posix_time::microseconds(1e6/current_config_.streaming_rate);

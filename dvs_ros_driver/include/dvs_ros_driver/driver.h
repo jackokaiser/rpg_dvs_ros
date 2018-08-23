@@ -31,7 +31,9 @@
 
 // DVS driver
 #include <libcaer/libcaer.h>
+#include <libcaer/devices/serial.h>
 #include <libcaer/devices/dvs128.h>
+#include <libcaer/devices/edvs.h>
 
 // dynamic reconfigure
 #include <dynamic_reconfigure/server.h>
@@ -76,7 +78,8 @@ private:
   dvs_ros_driver::DVS_ROS_DriverConfig current_config_;
   camera_info_manager::CameraInfoManager* camera_info_manager_;
 
-  struct caer_dvs128_info dvs128_info_;
+  struct caer_edvs_info dvs128_info_;
+  /* struct caer_dvs128_info dvs128_info_; */
   bool master_;
   std::string device_id_;
 
