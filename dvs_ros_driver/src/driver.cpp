@@ -23,6 +23,10 @@ DvsRosDriver::DvsRosDriver(ros::NodeHandle & nh, ros::NodeHandle nh_private) :
   // load parameters
   nh_private.param<std::string>("serial_number", device_id_, "");
   nh_private.param<bool>("master", master_, true);
+  nh_private.param<bool>("edvs/edvs", edvs_, false);
+  nh_private.param<bool>("edvs/serial_port", edvs_serial_port_, "/dev/ttyUSB0");
+  nh_private.param<int>("edvs/baudrate", edvs_baudrate_, CAER_HOST_CONFIG_SERIAL_BAUD_RATE_12M);
+
   double reset_timestamps_delay;
   nh_private.param<double>("reset_timestamps_delay", reset_timestamps_delay, -1.0);
 
@@ -31,9 +35,12 @@ DvsRosDriver::DvsRosDriver(ros::NodeHandle & nh, ros::NodeHandle nh_private) :
   while (!device_is_running)
   {
     const char* serial_number_restrict = (device_id_ == "") ? NULL : device_id_.c_str();
-    std::string serialPortName("/dev/ttyUSB0");
-    dvs128_handle = caerDeviceOpenSerial(1, CAER_DEVICE_EDVS, serialPortName.c_str() , CAER_HOST_CONFIG_SERIAL_BAUD_RATE_4M);
-    // dvs128_handle = caerDeviceOpen(1, CAER_DEVICE_DVS128, 0, 0, serial_number_restrict);
+    if (edvs_) {
+      dvs128_handle = caerDeviceOpenSerial(1, CAER_DEVICE_EDVS, edvs_serial_port_.c_str() , edvs_baudrate_);
+    }
+    else {
+      dvs128_handle = caerDeviceOpen(1, CAER_DEVICE_DVS128, 0, 0, serial_number_restrict);
+    }
 
     //dvs_running = driver_->isDeviceRunning();
     device_is_running = !(dvs128_handle == NULL);
@@ -47,7 +54,12 @@ DvsRosDriver::DvsRosDriver(ros::NodeHandle & nh, ros::NodeHandle nh_private) :
     else
     {
       // configure as master or slave
-      caerDeviceConfigSet(dvs128_handle, EDVS_CONFIG_DVS, DVS128_CONFIG_DVS_TS_MASTER, master_);
+      if (edvs_) {
+        caerDeviceConfigSet(dvs128_handle, EDVS_CONFIG_DVS, DVS128_CONFIG_DVS_TS_MASTER, master_);
+      }
+      else {
+        caerDeviceConfigSet(dvs128_handle, DVS128_CONFIG_DVS, DVS128_CONFIG_DVS_TS_MASTER, master_);
+      }
     }
 
     if (!ros::ok())
@@ -55,11 +67,26 @@ DvsRosDriver::DvsRosDriver(ros::NodeHandle & nh, ros::NodeHandle nh_private) :
       return;
     }
   }
-  dvs128_info_ = caerEDVSInfoGet(dvs128_handle);
-  device_id_ = "DVS128-V1-" + std::string(dvs128_info_.deviceString);
 
-  ROS_INFO("%s --- ID: %d, Master: %d, DVS X: %d, DVS Y: %d.\n", dvs128_info_.deviceString,
-           dvs128_info_.deviceID, dvs128_info_.deviceIsMaster, dvs128_info_.dvsSizeX, dvs128_info_.dvsSizeY);
+  if (edvs_) {
+    struct caer_edvs_info edvs_info;
+    edvs_info = caerEDVSInfoGet(dvs128_handle);
+    device_id_ = "EDVS-V1-" + std::string(edvs_info.deviceString);
+    // populate dvs128 info with edvs info
+    dvs128_info_.deviceString = edvs_info.deviceString;
+    dvs128_info_.deviceID = edvs_info.deviceID;
+    dvs128_info_.deviceIsMaster = edvs_info.deviceIsMaster;
+    dvs128_info_.dvsSizeX = edvs_info.dvsSizeX;
+    dvs128_info_.dvsSizeY = edvs_info.dvsSizeY;
+    dvs128_info_.logicVersion = "edvs";
+  }
+  else {
+    dvs128_info_ = caerDVS128InfoGet(dvs128_handle);
+    device_id_ = "DVS128-V1-" + std::string(dvs128_info_.deviceString).substr(15, 4);
+  }
+  ROS_INFO("%s --- ID: %d, Master: %d, DVS X: %d, DVS Y: %d, Logic: %d.\n", dvs128_info_.deviceString,
+           dvs128_info_.deviceID, dvs128_info_.deviceIsMaster, dvs128_info_.dvsSizeX, dvs128_info_.dvsSizeY,
+           dvs128_info_.logicVersion);
 
   current_config_.streaming_rate = 30;
   delta_ = boost::posix_time::microseconds(1e6/current_config_.streaming_rate);

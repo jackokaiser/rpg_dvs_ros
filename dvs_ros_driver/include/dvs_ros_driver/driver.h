@@ -78,9 +78,11 @@ private:
   dvs_ros_driver::DVS_ROS_DriverConfig current_config_;
   camera_info_manager::CameraInfoManager* camera_info_manager_;
 
-  struct caer_edvs_info dvs128_info_;
-  /* struct caer_dvs128_info dvs128_info_; */
+  struct caer_dvs128_info dvs128_info_;
   bool master_;
+  bool edvs_;
+  std::string edvs_serial_port_;
+  int edvs_baudrate_;
   std::string device_id_;
 
   ros::Time reset_time_;
